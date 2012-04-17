@@ -60,6 +60,8 @@
 #include <glade/glade.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <sys/time.h>
@@ -78,6 +80,15 @@
 #define INPUT_SIZE INPUT_WIDTH*INPUT_HEIGHT
 #define UPDATE_PERIOD 200 // milliseconds between polling scope
 
+#define RX_TIMEOUT 200000
+#define DEFAULT_TTY "/dev/ttyUSB0"
+#define SCREEN_DUMP_SIZE 40960
+
+uint8_t acquire_scope_buffer(uint8_t * buffer);
+//timer->invalidate->update->draw->ac_pixbuf->ac_buffer
+
+guchar *pixels;
+
 // structures
 typedef struct {
   unsigned char r;
@@ -89,8 +100,7 @@ typedef struct {
 GladeXML *xml;
 GdkPixbuf * pixbuf;
 guchar *pixels;
-int rval, read_chunk, read_total, byte_cnt, ser_fd;
-unsigned char input_buffer[INPUT_SIZE];
+int read_chunk, read_total, byte_cnt, console_fd;
 rgb_color colors[] = {
   {0,0,0},
   {0,0,0},
@@ -114,100 +124,34 @@ static unsigned char in_byte;
 struct timeval timestruct;
 double t1, t2;
 
-// prototypes
-gboolean refresh_capture(void);
-void debug_msg(char *msg, int debug_level);
+uint8_t buffer[SCREEN_DUMP_SIZE];
+uint16_t total;
+uint8_t rval;
+fd_set set;
+struct timeval timeout;
+const uint8_t msg[] = { 0x57, 0x00, 0x00, 0x0A } ; // hey, send us back a screenshot!
+  int rv;
+int console_fd;
 
-// main: program entry point
-int main(int argc, char *argv[])
-{
-  gtk_init(&argc, &argv);
-  
-  // load GUI
-  xml = glade_xml_new("/usr/share/scopeview/scopeview.glade", NULL, NULL);
-  if(!xml)
-    {
-      xml = glade_xml_new("/usr/local/share/scopeview/scopeview.glade", NULL, NULL);
-      if(!xml)
-	{
-	  xml = glade_xml_new("scopeview.glade", NULL, NULL);
-	  if(!xml)
-	    {
-	      debug_msg("couldn't parse GUI description", DEBUG_ERROR);
-	      gtk_main_quit();
-	    }
-	}
-    }
+GtkBuilder *builder;
+GtkWidget *window;
+GtkWidget *image_scope;
+GtkWidget *button_exit;
+GtkWidget *button_pause;
+GdkPixbuf * pixbuf_scope;
 
-  // set up GUI signals
-  glade_xml_signal_autoconnect(xml);
-  
-  // initialize serial port
-  ser_fd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
-  if (ser_fd == -1)
-  {
-    debug_msg("couldn't open serial port", DEBUG_ERROR);
-    gtk_main_quit();
-  }
-
-
-  // create pixel buffer
-  pixbuf = (GdkPixbuf *)gdk_pixbuf_new(GDK_COLORSPACE_RGB,
-				       FALSE,
-				       8,
-				       OUTPUT_WIDTH,
-				       OUTPUT_HEIGHT);
-  if(!pixbuf)
-    {
-      debug_msg("couldn't create pixbuf", DEBUG_ERROR);
-      gtk_main_quit();
-    }
-
-  // set up screen refresh callback
-  g_timeout_add (UPDATE_PERIOD, (void *)refresh_capture, 0);
-
-  gtk_main();
-
-  // close serial port
-  close(ser_fd);
-  return 0;
+static gboolean redraw_timer_handler(GtkWidget *widget) {
+  gtk_image_set_from_pixbuf(GTK_IMAGE(image_scope), pixbuf_scope);
+  return TRUE;
 }
 
-// display a new image from the scope
-gboolean refresh_capture(void)
-{
-  // send screen capture request to scope
-  rval = write(ser_fd, "W\0\0\n", 4);
-  if (rval<0)
-    {
-      debug_msg("couldn't write to tty", DEBUG_ERROR);
-    }
+static gboolean on_scope_expose( GtkWidget *widget, GdkEventExpose *event, gpointer user_data ) {
+  guchar * scope_pixels = gdk_pixbuf_get_pixels(pixbuf_scope);
 
-  // get time stamp to avoid waiting on serial port
-  gettimeofday(&timestruct, NULL);
-  t1=timestruct.tv_sec;
-
-  // read screen capture data to input buffer
-  read_total = 0;
-  while(read_total < INPUT_SIZE)
-    {
-      // read from serial port
-      read_chunk = read(ser_fd, &input_buffer[read_total], INPUT_SIZE);
-      read_total += read_chunk;
-
-      // update time stamp
-      gettimeofday(&timestruct, NULL);
-      t2=timestruct.tv_sec;
-
-      // break if we time out
-      if((t2-t1) > 1) break;
-    }
-
-  // get pointer to our output pixel buffer (since we're using a GdkPixbuf)
-  pixels = gdk_pixbuf_get_pixels (pixbuf);
+  acquire_scope_buffer(buffer);
 
   // unpack input buffer data to output buffer
-  for(byte_cnt=0; byte_cnt<INPUT_SIZE; byte_cnt++)
+  for(byte_cnt=0; byte_cnt<SCREEN_DUMP_SIZE; byte_cnt++)
     {
       // process output pixels 2 at a time, based on the current input byte.
       // each nibble of the input byte is used to index a color lookup table
@@ -217,7 +161,7 @@ gboolean refresh_capture(void)
       // orientation, some division and modulus operators are used to save the
       // pixel data in the output buffer rotated by 90 degrees.
 
-      in_byte = input_buffer[byte_cnt];
+      in_byte = buffer[byte_cnt];
 
       // set up to save output data rotated by 90 degrees
       row = byte_cnt%128;
@@ -225,44 +169,132 @@ gboolean refresh_capture(void)
       if(byte_cnt%128 < 120) // skip the last 8 rows of the image
 	{
 	  // save pixel 1 of this input byte
-	  pixels[(320*3*(row*2))+(3*col)]=colors[((in_byte >> 4) & 0x0f)].r;
-	  pixels[(320*3*(row*2))+(3*col)+1]=colors[((in_byte >> 4) & 0x0f)].g;
-	  pixels[(320*3*(row*2))+(3*col)+2]=colors[((in_byte >> 4) & 0x0f)].b;
+	  scope_pixels[(320*3*(row*2))+(3*col)]=colors[((in_byte >> 4) & 0x0f)].r;
+	  scope_pixels[(320*3*(row*2))+(3*col)+1]=colors[((in_byte >> 4) & 0x0f)].g;
+	  scope_pixels[(320*3*(row*2))+(3*col)+2]=colors[((in_byte >> 4) & 0x0f)].b;
 	  // save pixel 2 of this input byte
-	  pixels[(320*3*(row*2+1))+(3*col)]=colors[(in_byte & 0x0f)].r;
-	  pixels[(320*3*(row*2+1))+(3*col)+1]=colors[(in_byte & 0x0f)].g;
-	  pixels[(320*3*(row*2+1))+(3*col)+2]=colors[(in_byte & 0x0f)].b;
+	  scope_pixels[(320*3*(row*2+1))+(3*col)]=colors[(in_byte & 0x0f)].r;
+	  scope_pixels[(320*3*(row*2+1))+(3*col)+1]=colors[(in_byte & 0x0f)].g;
+	  scope_pixels[(320*3*(row*2+1))+(3*col)+2]=colors[(in_byte & 0x0f)].b;
 	}
     }
 
-  // update image widget with new image buffer data
-  gtk_image_set_from_pixbuf((GtkImage *)glade_xml_get_widget(xml, "capture"), pixbuf);
-
-  return TRUE;
-}
-
-
-void on_quit_activate(GtkMenuItem *menuitem, gpointer user_data)
-{
-  gtk_main_quit();
-}
-
-
-gboolean on_drawingarea1_expose_event(GtkWidget *widget, GdkEventExpose  *event, gpointer user_data)
-{
   return FALSE;
 }
 
-
-void on_window1_destroy(GtkObject *object, gpointer user_data)
-{
-  gtk_main_quit();
+void on_window_destroy (GtkObject * object, gpointer user_data) {
+    gtk_main_quit();
 }
 
-void debug_msg(char *msg, int debug_level)
-{
-  if (debug_level >= DEBUG_LEVEL)
-    {
-      printf("%s\n",msg);
+uint8_t init_gui(int argc, char *argv[]) {
+  return 0;
+}
+
+int serial_init(const char * dev) {
+  struct termios tio;
+  int console_fd;
+
+  memset(&tio, 0, sizeof(tio));
+  tio.c_iflag = 0;
+  tio.c_oflag = 0;
+  tio.c_cflag = CS8 | CREAD | CLOCAL; // 8N1, see termios.h for more information
+  tio.c_lflag = 0;
+
+  console_fd = open(dev, O_RDWR);
+  if (console_fd == -1) {
+    return 0; // error
+  }
+
+  cfsetospeed(&tio, B1200);
+  cfsetispeed(&tio, B1200);
+
+  tcsetattr(console_fd, TCSANOW, &tio);
+
+  return console_fd;
+}
+
+void pump(void) {
+  total = 0;
+  timeout.tv_sec = 0;
+  timeout.tv_usec = RX_TIMEOUT;
+  FD_SET(console_fd, &set);
+  write(console_fd, &msg, 4);
+}
+
+uint8_t acquire_scope_buffer(uint8_t * buffer) {
+  pump();
+  uint8_t * buffer_index;
+  buffer_index = &buffer[0];
+
+  while (1) {
+    rv = select(console_fd + 1, &set, NULL, NULL, &timeout);
+    if(rv == -1) {
+      // error?
+      return 1;
+    } else if (rv == 0) {
+      // timeout
+      pump();
+    } else {
+      rval = read(console_fd, buffer_index, 10);
+      total += rval;
+      if (rval > 0) {
+        if (buffer_index-buffer < 40960) {
+          buffer_index += rval;
+        }
+      }
+      if (total == 40960) {
+        return 0;
+      }
+      if (total >= 40960) {
+        printf(">> rval: %d, total: %d\n", rval, total);
+        return 1;
+      }
     }
+  }
 }
+
+// main: program entry point
+int main(int argc, char *argv[])
+{
+  // initialize serial port
+  console_fd = serial_init(argv[1]);
+  if (!console_fd) {
+    printf ("error opening serial port\n");
+    return 1;
+  }
+
+  init_gui(argc, argv);
+
+  gtk_init(&argc, &argv);
+  builder = gtk_builder_new();
+  gtk_builder_add_from_file(builder, "scopeview.xml", NULL);
+  window = GTK_WIDGET(gtk_builder_get_object(builder, "window"));
+  image_scope = GTK_WIDGET(gtk_builder_get_object(builder, "image_scope"));
+  gtk_builder_connect_signals(builder, NULL);
+
+  pixbuf_scope = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, 320, 240);
+
+  // enable timers
+  g_timeout_add(250, (GSourceFunc) redraw_timer_handler, (gpointer) window);
+
+  // set up send message notebook page
+  //GtkWidget * sendmsg_period = GTK_WIDGET(gtk_builder_get_object(builder, "sendmsg_period"));
+
+  // set up drawing callback
+  g_signal_connect(G_OBJECT(image_scope), "expose-event", G_CALLBACK(on_scope_expose), 0 );
+
+  // show main window
+  //g_object_unref(G_OBJECT(builder));
+  gtk_widget_show(window);
+
+  //////
+  FD_ZERO(&set); /* clear the set */
+  ///////
+
+  gtk_main();
+
+  // close serial port
+  close(console_fd);
+  return 0;
+}
+
