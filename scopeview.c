@@ -1,29 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2008 by Windsor Schmidt
-// <windsor.schmidt@gmail.com>
-// http://www.windsorschmidt.com
-// 
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the
-// Free Software Foundation, Inc.,
-// 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//
-///////////////////////////////////////////////////////////////////////////////
-//
 // Name : scopeview.c
 //
-// Version : 1.0
+// Version : 1.1
 //
 // Description : Read screen capture data from an Instek GDS-820C oscilloscope
 // through it's USB port.
@@ -67,71 +46,39 @@
 #include <sys/time.h>
 
 // defines
-#define DEBUG_LEVEL 1 // dont bug us unless an error is at least this severe
-#define DEBUG_INFO 1
-#define DEBUG_WARN 2
-#define DEBUG_ERROR 3
-#define DEBUG_CATASTROPHIC_FAILURE 4
 #define SERIAL_PORT "/dev/ttyUSB0"
 #define INPUT_WIDTH 320 // scope gives us 320 pixels per row
-#define INPUT_HEIGHT 128 // scope gives us 256 pixels per column
-#define OUTPUT_WIDTH 320
-#define OUTPUT_HEIGHT 240
-#define INPUT_SIZE INPUT_WIDTH*INPUT_HEIGHT
-#define UPDATE_PERIOD 200 // milliseconds between polling scope
-
+#define UPDATE_PERIOD 400 // milliseconds between polling scope
 #define RX_TIMEOUT 200000
 #define DEFAULT_TTY "/dev/ttyUSB0"
 #define SCREEN_DUMP_SIZE 40960
 
 uint8_t acquire_scope_buffer(uint8_t * buffer);
-//timer->invalidate->update->draw->ac_pixbuf->ac_buffer
-
-guchar *pixels;
 
 // structures
 typedef struct {
-  unsigned char r;
-  unsigned char g;
-  unsigned char b;
+  unsigned char r, g, b;
 } rgb_color;
 
 // global variables
 GladeXML *xml;
 GdkPixbuf * pixbuf;
 guchar *pixels;
-int read_chunk, read_total, byte_cnt, console_fd;
-rgb_color colors[] = {
-  {0,0,0},
-  {0,0,0},
-  {255,255,0},
-  {48,48,0},
-  {0,255,255},
-  {0,48,48},
-  {102,255,102},
-  {255,255,255},
-  {136,136,136},
-  {255,0,0},
-  {0,0,85},
-  {187,187,187},
-  {0,128,0},
-  {128,0,0},
-  {255,34,34},
-  {255,255,255}};
+int byte_cnt, console_fd;
+// original colors from GDS-820C LCD display
+//rgb_color colors[] = {{0,0,0},{0,0,0},{255,255,0},{48,48,0},{0,255,255},{0,48,48},{102,255,102},{255,255,255},{136,136,136},{255,0,0},{0,0,85},{187,187,187},{0,128,0},{128,0,0},{255,34,34},{255,255,255}};
+// white background for printing, etc.
+rgb_color colors[] = {{0,0,0},{255,255,255},{60,120,230},{0,0,0},{80,130,0},{0,0,0},{0,0,0},{0,0,0},{220,220,200},{0,0,0},{255,255,255},{255,255,255},{0,0,0},{0,0,0},{220,40,90},{255,255,255}};
 static int row;
 static int col;
 static unsigned char in_byte;
-struct timeval timestruct;
-double t1, t2;
-
 uint8_t buffer[SCREEN_DUMP_SIZE];
-uint16_t total;
-uint8_t rval;
 fd_set set;
 struct timeval timeout;
 const uint8_t msg[] = { 0x57, 0x00, 0x00, 0x0A } ; // hey, send us back a screenshot!
-  int rv;
+int rv;
 int console_fd;
+gint win_w, win_h;
 
 GtkBuilder *builder;
 GtkWidget *window;
@@ -139,16 +86,13 @@ GtkWidget *image_scope;
 GtkWidget *button_exit;
 GtkWidget *button_pause;
 GdkPixbuf * pixbuf_scope;
+GdkPixbuf * pixbuf_scaled;
+guchar * scope_pixels;
 
 static gboolean redraw_timer_handler(GtkWidget *widget) {
-  gtk_image_set_from_pixbuf(GTK_IMAGE(image_scope), pixbuf_scope);
-  return TRUE;
-}
+  scope_pixels = gdk_pixbuf_get_pixels(pixbuf_scope);
 
-static gboolean on_scope_expose( GtkWidget *widget, GdkEventExpose *event, gpointer user_data ) {
-  guchar * scope_pixels = gdk_pixbuf_get_pixels(pixbuf_scope);
-
-  acquire_scope_buffer(buffer);
+  if (acquire_scope_buffer(buffer)) { return TRUE; }
 
   // unpack input buffer data to output buffer
   for(byte_cnt=0; byte_cnt<SCREEN_DUMP_SIZE; byte_cnt++)
@@ -179,6 +123,17 @@ static gboolean on_scope_expose( GtkWidget *widget, GdkEventExpose *event, gpoin
 	}
     }
 
+  pixbuf_scaled = gdk_pixbuf_scale_simple (pixbuf_scope, win_w, win_h, GDK_INTERP_NEAREST);
+  gtk_image_set_from_pixbuf(GTK_IMAGE(image_scope), pixbuf_scaled);
+  gdk_pixbuf_unref (pixbuf_scaled);
+  gtk_widget_queue_draw(window);
+  return TRUE;
+}
+
+static gboolean on_configure( GtkWidget *widget, GdkEventConfigure *event, gpointer user_data ) {
+  win_w = event->width;
+  win_h = event->height;
+  gtk_widget_queue_draw(window);
   return FALSE;
 }
 
@@ -186,7 +141,21 @@ void on_window_destroy (GtkObject * object, gpointer user_data) {
     gtk_main_quit();
 }
 
-uint8_t init_gui(int argc, char *argv[]) {
+uint8_t gui_init(int argc, char *argv[]) {
+  gtk_init(&argc, &argv);
+  builder = gtk_builder_new();
+  gtk_builder_add_from_file(builder, "scopeview.xml", NULL);
+  window = GTK_WIDGET(gtk_builder_get_object(builder, "window"));
+  image_scope = GTK_WIDGET(gtk_builder_get_object(builder, "image_scope"));
+  gtk_builder_connect_signals(builder, NULL);
+  pixbuf_scope = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, 320, 240);
+
+  // enable timers
+  g_timeout_add(UPDATE_PERIOD, (GSourceFunc) redraw_timer_handler, (gpointer) window);
+
+  // set up drawing callback
+  g_signal_connect(G_OBJECT(window), "configure-event", G_CALLBACK(on_configure), 0 );
+
   return 0;
 }
 
@@ -213,41 +182,41 @@ int serial_init(const char * dev) {
   return console_fd;
 }
 
-void pump(void) {
-  total = 0;
+uint8_t acquire_scope_buffer(uint8_t * buffer) {
+  uint8_t * buffer_index = &buffer[0];
+  uint8_t temp_buffer[64];
+  int rval;
+  int total = 0;
+
+  // request data
   timeout.tv_sec = 0;
   timeout.tv_usec = RX_TIMEOUT;
   FD_SET(console_fd, &set);
   write(console_fd, &msg, 4);
-}
-
-uint8_t acquire_scope_buffer(uint8_t * buffer) {
-  pump();
-  uint8_t * buffer_index;
-  buffer_index = &buffer[0];
 
   while (1) {
     rv = select(console_fd + 1, &set, NULL, NULL, &timeout);
-    if(rv == -1) {
+    if (rv == -1) {
       // error?
       return 1;
     } else if (rv == 0) {
       // timeout
-      pump();
+      return 1;
     } else {
-      rval = read(console_fd, buffer_index, 10);
-      total += rval;
+      rval = read(console_fd, &temp_buffer, 64);
       if (rval > 0) {
-        if (buffer_index-buffer < 40960) {
+        total += rval;
+        if (total <= SCREEN_DUMP_SIZE) {
+          memcpy(buffer_index, &temp_buffer, rval);
           buffer_index += rval;
+        } else {
+          printf(">> overflow: last rval=%d, bytes total=%d\n", rval, total);
+          return 1;
         }
-      }
-      if (total == 40960) {
-        return 0;
-      }
-      if (total >= 40960) {
-        printf(">> rval: %d, total: %d\n", rval, total);
-        return 1;
+        if (total == SCREEN_DUMP_SIZE) {
+          // just the exact amount of data we wanted
+          return 0;
+        }
       }
     }
   }
@@ -263,37 +232,18 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  init_gui(argc, argv);
+  // initialize user interface
+  if (gui_init(argc, argv)) {
+    printf ("error setting up gui\n");
+    return 1;
+  }
 
-  gtk_init(&argc, &argv);
-  builder = gtk_builder_new();
-  gtk_builder_add_from_file(builder, "scopeview.xml", NULL);
-  window = GTK_WIDGET(gtk_builder_get_object(builder, "window"));
-  image_scope = GTK_WIDGET(gtk_builder_get_object(builder, "image_scope"));
-  gtk_builder_connect_signals(builder, NULL);
-
-  pixbuf_scope = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, 320, 240);
-
-  // enable timers
-  g_timeout_add(250, (GSourceFunc) redraw_timer_handler, (gpointer) window);
-
-  // set up send message notebook page
-  //GtkWidget * sendmsg_period = GTK_WIDGET(gtk_builder_get_object(builder, "sendmsg_period"));
-
-  // set up drawing callback
-  g_signal_connect(G_OBJECT(image_scope), "expose-event", G_CALLBACK(on_scope_expose), 0 );
-
-  // show main window
-  //g_object_unref(G_OBJECT(builder));
+  // show main window and enter main loop
   gtk_widget_show(window);
-
-  //////
-  FD_ZERO(&set); /* clear the set */
-  ///////
-
   gtk_main();
 
-  // close serial port
+  // clean up and exit
+  g_object_unref(G_OBJECT(builder));
   close(console_fd);
   return 0;
 }
