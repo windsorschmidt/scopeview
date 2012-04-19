@@ -1,6 +1,6 @@
 ## Scopeview
 
-Scopeview is a Linux/GTK+ utility to read screen capture data from an Instek GDS-820C oscilloscope through it's USB port.
+Scopeview is a Linux/GTK+ utility to read screen capture data from an Instek GDS-820C oscilloscope through its USB port.
 
 ![](https://github.com/honeyclaw/scopeview/raw/master/screenshot.png)
 
