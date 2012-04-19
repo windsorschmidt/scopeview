@@ -6,7 +6,7 @@ Scopeview is a Linux/GTK+ utility to read screen capture data from an Instek GDS
 
 ## Notes
 
-* This software was developed and tested using Linux (Debian and Arch). YMMV.
+* Developed and tested using Linux (Debian and Arch). YMMV.
 
 * To compile scopeview from the command line, use the make file or try this:
 
