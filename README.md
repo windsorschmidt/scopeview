@@ -17,9 +17,3 @@ Scopeview is a Linux/GTK+ utility to read screen capture data from an Instek GDS
 ```./scopeview /dev/ttyUSB```
 
 * Thanks to the creators of http://www.reconnsworld.com for the original python code which this code is based on.
-
-## To Do
-
-* Hard-code GUI and ditch the XML layout file?
-
-* keyboard controls for things like double-size, colors, etc.

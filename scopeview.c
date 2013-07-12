@@ -32,6 +32,12 @@
 // 7. Thanks to the creators of http://www.reconnsworld.com for the original
 // python code which this code is based on.
 //
+//
+// TO DO:
+// ------
+// * Hard-code GUI and ditch the XML layout file?
+// * keyboard controls for things like double-size, colors, etc.
+//
 ///////////////////////////////////////////////////////////////////////////////
 
 // includes
