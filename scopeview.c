@@ -130,8 +130,8 @@ rgb_color colors_mono[] = {
     {0x00, 0x00, 0x00},  /* Math trace/info, logo background */
     {0xff, 0xff, 0xff}}; /* Menu highlight                   */
 
-#define COLOR_THEME_COUNT 3
-static rgb_color *color_themes[] = {colors_dark, colors_light, colors_mono};
+#define COLOR_THEME_COUNT 4
+static rgb_color *color_themes[] = {colors_dark, colors_light, colors_mono, colors_orig};
 static int theme = 0;
 static int row;
 static int col;

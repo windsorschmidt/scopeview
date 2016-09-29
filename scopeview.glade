@@ -5,8 +5,8 @@
   <object class="GtkWindow" id="window">
     <property name="can_focus">False</property>
     <property name="resizable">False</property>
-    <property name="default_width">640</property>
-    <property name="default_height">480</property>
+    <property name="default_width">320</property>
+    <property name="default_height">240</property>
     <signal name="destroy" handler="on_window_destroy" swapped="no"/>
     <child>
       <object class="GtkImage" id="image_scope">
