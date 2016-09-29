@@ -16,10 +16,12 @@ Use the included Makefile or try:
 
 ### Usage
 
-```scopeview <serial-device>``
+```scopeview <serial-device>```
 
 e.g. ```./scopeview /dev/ttyUSB1```
 
-## Notes
+- Switch between color themes with <kbd>space</kbd>.
+
+### Notes
 
 This is quick and dirty code, tested only in Linux (Debian and Arch). Requies GTK and Glade libraries. Based on a similar python implementation from http://www.reconnsworld.com
