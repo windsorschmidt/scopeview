@@ -4,6 +4,7 @@ Scopeview is a utility to read display buffer data from the LCD of an Instek GDS
 
 <kbd>![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_dark.png)</kbd>
 <kbd>![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_light.png)</kbd>
+
 <kbd>![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_mono.png)</kbd>
 <kbd>![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_orig.png)</kbd>
 
