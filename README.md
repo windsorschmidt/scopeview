@@ -3,11 +3,8 @@
 Scopeview is a utility to read display buffer data from the LCD of an Instek GDS-820C oscilloscope through its USB port.
 
 ![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_dark.png)
-
 ![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_light.png)
-
 ![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_mono.png)
-
 ![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_orig.png)
 
 ### Compiling
@@ -18,12 +15,10 @@ Use the included Makefile or try:
 
 ### Usage
 
-scopeview <device>
+```scopeview <serial-device>``
 
 e.g. ```./scopeview /dev/ttyUSB1```
 
 ## Notes
 
-* This is quick and dirty code, tested only in Linux (Debian and Arch). Requies GTK and Glade libraries.
-
-* Based on a similar python implementation from http://www.reconnsworld.com
+This is quick and dirty code, tested only in Linux (Debian and Arch). Requies GTK and Glade libraries. Based on a similar python implementation from http://www.reconnsworld.com
