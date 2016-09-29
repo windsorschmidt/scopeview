@@ -2,10 +2,12 @@
 
 Scopeview is a utility to read display buffer data from the LCD of an Instek GDS-820C oscilloscope through its USB port.
 
-  <img style="border: 1px solid black; margin-right: 1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_dark.png">
-  <img style="border: 1px solid black; margin-right: 1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_light.png">
-  <img style="border: 1px solid black; margin-right: 1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_mono.png">
-  <img style="border: 1px solid black; margin-right: 1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_orig.png">
+<p>
+  <img style="border:1px solid #222222; margin-right:1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_dark.png">
+  <img style="border:1px solid #222222; margin-right:1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_light.png">
+  <img style="border:1px solid #222222; margin-right:1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_mono.png">
+  <img style="border:1px solid #222222; margin-right:1em;}" src="https://github.com/windsorschmidt/scopeview/raw/master/screenshot_orig.png">
+</p>
 
 ### Compiling
 
