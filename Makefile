@@ -1,7 +1,7 @@
 OUTPUT = scopeview
-INCLUDES = `pkg-config --cflags libglade-2.0`
+INCLUDES = `pkg-config --cflags gtk+-3.0`
 CFLAGS = $(INCLUDES) -Wall
-LDFLAGS = `pkg-config --libs libglade-2.0` -export-dynamic
+LDFLAGS = `pkg-config --libs gtk+-3.0` -export-dynamic
 
 C_OBJECTS = scopeview.o
 scopeview : $(C_OBJECTS)
