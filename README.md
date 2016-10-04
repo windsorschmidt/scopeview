@@ -2,7 +2,7 @@
 
 Scopeview is a utility to view the display of an Instek GDS-820C oscilloscope via USB in near-realtime (tm).
 
-![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot_dark.png)
+![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot.png)
 
 ### Compiling
 
