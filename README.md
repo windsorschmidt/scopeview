@@ -1,8 +1,12 @@
-## Scopeview for Instek GDS-820C
+## About
 
-Scopeview is a utility to view the display of an Instek GDS-820C oscilloscope via USB in near-realtime (tm).
+A utility to view the display of an Instek GDS-820C oscilloscope via USB in near-realtime (tm).
 
 ![](https://github.com/windsorschmidt/scopeview/raw/master/screenshot.png)
+
+## Requirements
+
+Requies GTK and Glade libraries.
 
 ### Compiling
 
@@ -20,4 +24,4 @@ e.g. ```./scopeview /dev/ttyUSB1```
 
 ### Notes
 
-This is quick and dirty code, tested only in Linux (Debian and Arch). Requies GTK and Glade libraries. Based on a similar python implementation from http://www.reconnsworld.com.
+This is quick and dirty code, tested only in (Arch) Linux. Based on a similar python implementation from http://www.reconnsworld.com.
