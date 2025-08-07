@@ -2,7 +2,7 @@
 
 A utility to view the display of an Instek GDS-820C oscilloscope via USB in near-realtime (tm).
 
-![Screenshot](screenshot_mono.png?raw=true "Screenshot")                                           
+![Screenshot](screenshot_orig.png?raw=true "Screenshot")                                           
 
 ## Requirements
 
